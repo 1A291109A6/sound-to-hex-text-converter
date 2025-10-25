@@ -1,4 +1,4 @@
-# sound-to-text-converter
+# sound-to-hex-text-converter
 
 [ファイルを選択]を押し、音声ファイル(.mp3,.wav等)を選択します。
 待っていると自動で音声を変換したテキストファイルのダウンロードが始まります。
