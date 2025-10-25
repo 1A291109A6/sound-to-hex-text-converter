@@ -1,8 +1,7 @@
 function init() {
   const fileInput = document.getElementById('fileInput');
   const downloadLink = document.getElementById('downloadLink');
-  // loadingText を取得
-  const loadingText = document.getElementById('loadingText'); // このIDがHTMLにあるか確認してください
+  const loadingText = document.getElementById('loadingText'); // HTMLにこのIDがあることを確認してください
 
   fileInput.addEventListener('change', (event) => {
     const file = event.target.files[0];
@@ -12,40 +11,48 @@ function init() {
     const reader = new FileReader();
 
     reader.onload = (event) => {
-      // loadingText が存在する場合のみ表示
       if (loadingText) {
         loadingText.style.display = 'block';
       }
       
       const audioContext = new AudioContext();
 
-      // デコード後の処理（コールバック関数）
       const decodeCallback = (buffer) => {
-        const channelData = buffer.getChannelData(0); // チャンネル0のデータを取得
+        const channelData = buffer.getChannelData(0); 
         let textData = '';
         const samplingRate = buffer.sampleRate;
-        const step = samplingRate / 8000; // 8kHz相当にダウンサンプリング
+        const step = samplingRate / 8000; 
 
         for (let i = 0; i < channelData.length; i += step) {
-          const floatVal = channelData[Math.floor(i)]; // サンプル値 (-1.0 ～ 1.0)
+          let floatVal = channelData[Math.floor(i)]; 
 
-          // 1. -1.0～1.0 の値を 0～255 の整数にマッピング
+          // --- 修正点 ---
+
+          // 1. 値が NaN や Infinity でないかチェック
+          //    isFinite() は有限数（NaNでもInfinityでもない）の場合に true を返す
+          if (!isFinite(floatVal)) {
+            floatVal = 0.0; // 無効な値は 0.0 (16進数で "80") として扱う
+          }
+
+          // 2. 値を -1.0 ～ 1.0 の範囲に確実にクリッピング（切り詰め）
+          //    浮動小数点演算の誤差などで範囲外になることを防ぐ
+          floatVal = Math.max(-1.0, Math.min(1.0, floatVal));
+          
+          // --- 修正点ここまで ---
+
+
+          // -1.0～1.0 の値を 0～255 の整数にマッピング
           // (floatVal + 1.0) -> 0.0 ～ 2.0
-          // ((floatVal + 1.0) / 2.0) -> 0.0 ～ 1.0
+          // * 0.5 -> 0.0 ～ 1.0
           // * 255 -> 0 ～ 255
-          const intVal = Math.round(((floatVal + 1.0) / 2.0) * 255);
+          const intVal = Math.round(((floatVal + 1.0) * 0.5) * 255);
 
-          // 2. 整数を2桁の16進数文字列に変換 (例: 10 -> "0A", 255 -> "FF")
-          //    .toString(16) で16進数に
-          //    .padStart(2, '0') で2桁未満の場合に左側を0で埋める
-          //    .toUpperCase() で小文字を大文字に (例: "ff" -> "FF")
+          // 整数を2桁の16進数文字列に変換 (0 -> "00", 255 -> "FF")
           const hexVal = intVal.toString(16).padStart(2, '0').toUpperCase();
 
-          // 3. 改行なしで連結
           textData += hexVal;
         }
 
-        // Blobを作成してダウンロード
         const blob = new Blob([textData], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         downloadLink.href = url;
@@ -55,13 +62,11 @@ function init() {
 
         downloadLink.click();
         
-        // loadingText が存在する場合のみ非表示
         if (loadingText) {
           loadingText.style.display = 'none';
         }
       };
 
-      // エラー処理
       const errorCallback = (error) => {
         console.error("Error decoding audio data:", error);
         if (loadingText) {
@@ -70,14 +75,14 @@ function init() {
         alert(`ファイルのデコードに失敗しました: ${error.message}`);
       };
 
-      // サポートされているファイルタイプかチェックし、デコードを実行
+      // デコード処理
       switch (file.type) {
         case 'audio/wav':
         case 'audio/mp3':
         case 'audio/mpeg':
         case 'audio/ogg':
-        case 'audio/flac': // FLACもサポートされていることが多い
-        case 'audio/x-m4a': // M4A
+        case 'audio/flac':
+        case 'audio/x-m4a':
         case 'audio/m4a':
           audioContext.decodeAudioData(event.target.result, decodeCallback, errorCallback);
           break;
